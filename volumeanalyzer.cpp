@@ -1,5 +1,17 @@
 #include "volumeanalyzer.h"
 QString VolumeAnalyzer::errorStr_ = "";
+QProgressBar* VolumeAnalyzer::prBar_ = nullptr;
+
+
+void VolumeAnalyzer::Init(QProgressBar *prBar)
+{
+    prBar_ = prBar;
+}
+
+void VolumeAnalyzer::begin()
+{
+    prBar_->setValue(prBar_->value() + 1);
+}
 
 QStringList VolumeAnalyzer::getVolumesList()
 {
@@ -8,7 +20,7 @@ QStringList VolumeAnalyzer::getVolumesList()
     DWORD logDrivers = GetLogicalDrives();
     if (logDrivers == 0)
     {
-        VolumeAnalyzer::errorStr_ = "Помилка при спробі отримати список логічних дисків";
+        errorStr_ = "Помилка при спробі отримати список логічних дисків";
         return result;
     }
     for (int i = 0; i < 26; ++i)
@@ -21,4 +33,9 @@ QStringList VolumeAnalyzer::getVolumesList()
         }
     }
     return result;
+}
+
+QString VolumeAnalyzer::getErrorStr()
+{
+    return errorStr_;
 }

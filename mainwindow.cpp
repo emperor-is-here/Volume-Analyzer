@@ -7,10 +7,25 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    VolumeAnalyzer::Init(ui->progressBar);
     ui->volumeList->addItems(VolumeAnalyzer::getVolumesList());
+    CheckErrors();
 }
 
 MainWindow::~MainWindow()
 {
     delete ui;
+}
+
+void MainWindow::CheckErrors()
+{
+    if (VolumeAnalyzer::getErrorStr() != "")
+    {
+        ui->errorLabel->setText(VolumeAnalyzer::getErrorStr());
+    }
+}
+
+void MainWindow::on_startAnButton_clicked()
+{
+    VolumeAnalyzer::begin();
 }
