@@ -27,5 +27,6 @@ void MainWindow::CheckErrors()
 
 void MainWindow::on_startAnButton_clicked()
 {
-    VolumeAnalyzer::begin();
+    VolumeAnalyzer::begin( ui->volumeList->currentText() );
+    CheckErrors();
 }
