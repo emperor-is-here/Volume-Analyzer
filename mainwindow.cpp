@@ -7,7 +7,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    VolumeAnalyzer::Init(ui->progressBar);
+    VolumeAnalyzer::Init(ui->progressBar, ui->fCheckedInfo, ui->fFragedInfo, ui->fNameInfo);
     ui->volumeList->addItems(VolumeAnalyzer::getVolumesList());
     CheckErrors();
 }
