@@ -1,18 +1,8 @@
 #include "volumeanalyzer.h"
-QString VolumeAnalyzer::errorStr_ = "";
-QProgressBar* VolumeAnalyzer::prBar_ = nullptr;
-QLabel * VolumeAnalyzer::chakedLbl_ = nullptr;
-QLabel * VolumeAnalyzer::fragedLbl_ = nullptr;
-QLabel * VolumeAnalyzer::fNameLbl_ = nullptr;
-__int64 VolumeAnalyzer::filesSize_ = 0;
-__int64 VolumeAnalyzer::chekedSize_ = 0;
 
-void VolumeAnalyzer::Init(QProgressBar *prBar, QLabel *chakedLbl, QLabel *fragedLbl, QLabel *fNameLbl)
+void VolumeAnalyzer::stop()
 {
-    prBar_ = prBar;
-    chakedLbl_ = chakedLbl;
-    fragedLbl_ = fragedLbl;
-    fNameLbl = fNameLbl_;
+    running = false;
 }
 
 void VolumeAnalyzer::begin(const QString& drive)
@@ -34,8 +24,35 @@ void VolumeAnalyzer::begin(const QString& drive)
     }
     filesSize_ = totalBytes - freeBytes;
     chekedSize_ = 0;
+    running = true;
+    std::thread analyzeVolumeThread(&VolumeAnalyzer::analyzeVolume, this, drivePath);
+    analyzeVolumeThread.detach();
 
-    chakedLbl_->setText(QString::number((double)( (totalBytes - freeBytes) / (1024.0 * 1024.0 * 1024.0))));
+    //chakedLbl_->setText(QString::number((double)( (totalBytes - freeBytes) / (1024.0 * 1024.0 * 1024.0))));
+}
+
+void VolumeAnalyzer::analyzeVolume(const TCHAR* drive)
+{
+    WIN32_FIND_DATA findFileData;
+    HANDLE hf;
+    hf = FindFirstFile(drive, &findFileData);
+    if (hf!=INVALID_HANDLE_VALUE){
+    do{
+        //fNameLbl_->setText(QString::fromWCharArray(findFileData.cFileName));
+      } while (FindNextFile(hf,&findFileData)!= 0);
+        FindClose(hf);
+    }
+}
+
+void VolumeAnalyzer::analyzeDir(const TCHAR* path)
+{
+    if (!running)
+        return;
+}
+
+void VolumeAnalyzer::analyzeFile(const TCHAR* path)
+{
+
 }
 
 QStringList VolumeAnalyzer::getVolumesList()
@@ -60,7 +77,3 @@ QStringList VolumeAnalyzer::getVolumesList()
     return result;
 }
 
-QString VolumeAnalyzer::getErrorStr()
-{
-    return errorStr_;
-}
