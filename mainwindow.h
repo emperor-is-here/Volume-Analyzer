@@ -21,9 +21,11 @@ signals:
 
 public slots:
     void anFinished();
-    void updateFileName(const QString& fName);
-    void updateFragedCount(const __int64 fragedCount);
-    void updateChekedCount(const __int64 chekedCount);
+    void updateInfo(const QString& fName,
+                    long long fragedCountlong,
+                    long long chekedCount,
+                    int percentInc = 0);
+    void notifyError(const QString& error);
 
 private slots:
     void on_startAnButton_clicked();

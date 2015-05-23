@@ -7,7 +7,7 @@ void VolumeAnalyzer::stop()
 
 void VolumeAnalyzer::begin(const QString& drive)
 {
-    TCHAR drivePath[4];
+    wchar_t drivePath[5];
     drive.toWCharArray(drivePath);
     drivePath[2] = '\0';
     __int64 freeBytesToCaller,
@@ -19,11 +19,11 @@ void VolumeAnalyzer::begin(const QString& drive)
                        (PULARGE_INTEGER)&freeBytes);
     if (status == 0)
     {
-        errorStr_ = "Помилка при спробі отримати інформацію про носій";
+        emit notifyError("Помилка при спробі отримати інформацію про носій");
         return;
     }
     filesSize_ = totalBytes - freeBytes;
-    chekedSize_ = 0;
+    chekedSize_ = 0; chekedCount_ = 0; fragedCount_ = 0;
     running = true;
     std::thread analyzeVolumeThread(&VolumeAnalyzer::analyzeVolume, this, drivePath);
     analyzeVolumeThread.detach();
@@ -31,28 +31,76 @@ void VolumeAnalyzer::begin(const QString& drive)
     //chakedLbl_->setText(QString::number((double)( (totalBytes - freeBytes) / (1024.0 * 1024.0 * 1024.0))));
 }
 
-void VolumeAnalyzer::analyzeVolume(const TCHAR* drive)
+void VolumeAnalyzer::analyzeVolume(const wchar_t* drive)
 {
     WIN32_FIND_DATA findFileData;
     HANDLE hf;
-    hf = FindFirstFile(drive, &findFileData);
-    if (hf!=INVALID_HANDLE_VALUE){
-    do{
-        //fNameLbl_->setText(QString::fromWCharArray(findFileData.cFileName));
-      } while (FindNextFile(hf,&findFileData)!= 0);
-        FindClose(hf);
+    wchar_t path[MAX_PATH] = {0};
+    wchar_t searchExpr[MAX_PATH] = {0};
+    lstrcpy(path, drive);
+    lstrcpy(searchExpr, path);
+    lstrcat(searchExpr, L"\\*");
+
+    hf = FindFirstFile(searchExpr, &findFileData);
+    if (hf != INVALID_HANDLE_VALUE){
+    do {
+            if((lstrcmp(findFileData.cFileName, L".") == 0) ||
+               (lstrcmp(findFileData.cFileName, L"..") == 0)) {
+                  continue;
+            }
+            if(findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+               analyzeDir(path, findFileData.cFileName);
+            } else {
+               analyzeFile(&findFileData);
+            }
+//            Sleep(500);
+
+       } while (FindNextFile(hf, &findFileData)!= 0);
+
+      FindClose(hf);
+    }
+    emit finished();
+}
+
+void VolumeAnalyzer::analyzeDir(const wchar_t* prevPath, const wchar_t* dirName)
+{
+    WIN32_FIND_DATA findFileData;
+    HANDLE hf;
+    wchar_t path[MAX_PATH] = {0};
+    wchar_t serachExpr[MAX_PATH] = {0};
+    lstrcpy(path, prevPath);
+    lstrcat(path, L"\\");
+    lstrcat(path, dirName);
+
+    lstrcpy(serachExpr, path);
+    lstrcat(serachExpr, L"\\*");
+    qDebug() << QString::fromWCharArray(path);
+    hf = FindFirstFile(serachExpr, &findFileData);
+    if (hf != INVALID_HANDLE_VALUE){
+    do {
+            if((lstrcmp(findFileData.cFileName, L".") == 0) ||
+               (lstrcmp(findFileData.cFileName, L"..") == 0)) {
+                  continue;
+            }
+            if(findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+                analyzeDir(path, findFileData.cFileName);
+            } else {
+                analyzeFile(&findFileData);
+            }
+            //Sleep(500);
+
+       } while (FindNextFile(hf,&findFileData)!= 0);
+
+      FindClose(hf);
     }
 }
 
-void VolumeAnalyzer::analyzeDir(const TCHAR* path)
+void VolumeAnalyzer::analyzeFile(const WIN32_FIND_DATA* findFileData)
 {
-    if (!running)
-        return;
-}
+    //emit updateFileName(QString::fromWCharArray(findFileData->cFileName));
 
-void VolumeAnalyzer::analyzeFile(const TCHAR* path)
-{
-
+    chekedCount_++;
+    //emit updateChekedCount(chekedCount_);
 }
 
 QStringList VolumeAnalyzer::getVolumesList()
@@ -62,7 +110,7 @@ QStringList VolumeAnalyzer::getVolumesList()
     DWORD logDrivers = GetLogicalDrives();
     if (logDrivers == 0)
     {
-        errorStr_ = "Помилка при спробі отримати список логічних дисків";
+        emit notifyError("Помилка при спробі отримати список логічних дисків");
         return result;
     }
     for (int i = 0; i < 26; ++i)

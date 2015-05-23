@@ -10,9 +10,15 @@ MainWindow::MainWindow(QWidget *parent) :
 
     connect(this, SIGNAL(anStop()), &va, SLOT(stop()));
     connect(&va, SIGNAL(finished()), this, SLOT(anFinished()));
-    connect(&va, SIGNAL(updateChekedCount(long long)), this, SLOT(updateChekedCount(long long)));
-    connect(&va, SIGNAL(updateFileName(const QString& fName)), this, SLOT(updateFileName(const QString& fName)));
-    connect(&va, SIGNAL(updateChekedCount(long long)), this, SLOT(updateChekedCount(long long)));
+    connect(&va, SIGNAL(updateInfo(const QString&,
+                                   long long,
+                                   long long,
+                                   int)),
+            this, SLOT(updateInfo(const QString&,
+                                  long long,
+                                  long long,
+                                  int)));
+    connect(&va, SIGNAL(notifyError(const QString&)), this, SLOT(notifyError(const QString&)));
 
     ui->volumeList->addItems(va.getVolumesList());
 }
@@ -31,22 +37,24 @@ void MainWindow::on_startAnButton_clicked()
 
 void MainWindow::anFinished()
 {
+    ui->errorLabel->setText("finished");
     ui->stopAnButton->setEnabled(false);
     ui->startAnButton->setEnabled(true);
 }
 
-void MainWindow::updateFileName(const QString& fName)
+void MainWindow::updateInfo(const QString& fName,
+                            long long fragedCount,
+                            long long chekedCount,
+                            int percentInc)
 {
     ui->fNameInfo->setText(fName);
-}
-
-void MainWindow::updateFragedCount(const __int64 fragedCount)
-{
     ui->fFragedInfo->setText(QString::number(fragedCount));
+    ui->fCheckedInfo->setText(QString::number(chekedCount));
+
 }
 
-void MainWindow::updateChekedCount(const __int64 chekedCount)
+void MainWindow::notifyError(const QString &error)
 {
-    ui->fCheckedInfo->setText(QString::number(chekedCount));
+    ui->errorLabel->setText(error);
 }
 
