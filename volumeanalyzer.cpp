@@ -3,6 +3,7 @@
 void VolumeAnalyzer::stop()
 {
     running = false;
+    //pthread_kill(threadHandle, 0);
 }
 
 void VolumeAnalyzer::begin(const QString& drive)
@@ -22,13 +23,12 @@ void VolumeAnalyzer::begin(const QString& drive)
         emit notifyError("Помилка при спробі отримати інформацію про носій");
         return;
     }
-    filesSize_ = totalBytes - freeBytes;
-    chekedSize_ = 0; chekedCount_ = 0; fragedCount_ = 0;
+    volumeSize_ = totalBytes;
+    dgStepSize_ = (totalBytes - freeBytes) / 100;
+    chekedCount_ = 0; fragedCount_ = 0; dPrevPos_ = 0; fragedRate_ = 0.;
     running = true;
     std::thread analyzeVolumeThread(&VolumeAnalyzer::analyzeVolume, this, drivePath);
     analyzeVolumeThread.detach();
-
-    //chakedLbl_->setText(QString::number((double)( (totalBytes - freeBytes) / (1024.0 * 1024.0 * 1024.0))));
 }
 
 void VolumeAnalyzer::analyzeVolume(const wchar_t* drive)
@@ -44,14 +44,18 @@ void VolumeAnalyzer::analyzeVolume(const wchar_t* drive)
     hf = FindFirstFile(searchExpr, &findFileData);
     if (hf != INVALID_HANDLE_VALUE){
     do {
+            if (!running)
+               return;
+
             if((lstrcmp(findFileData.cFileName, L".") == 0) ||
                (lstrcmp(findFileData.cFileName, L"..") == 0)) {
                   continue;
             }
+
             if(findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
                analyzeDir(path, findFileData.cFileName);
             } else {
-               analyzeFile(&findFileData);
+               analyzeFile(&findFileData, path);
             }
 //            Sleep(500);
 
@@ -74,10 +78,13 @@ void VolumeAnalyzer::analyzeDir(const wchar_t* prevPath, const wchar_t* dirName)
 
     lstrcpy(serachExpr, path);
     lstrcat(serachExpr, L"\\*");
-    qDebug() << QString::fromWCharArray(path);
+
     hf = FindFirstFile(serachExpr, &findFileData);
     if (hf != INVALID_HANDLE_VALUE){
     do {
+            if (!running)
+               return;
+
             if((lstrcmp(findFileData.cFileName, L".") == 0) ||
                (lstrcmp(findFileData.cFileName, L"..") == 0)) {
                   continue;
@@ -85,9 +92,9 @@ void VolumeAnalyzer::analyzeDir(const wchar_t* prevPath, const wchar_t* dirName)
             if(findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
                 analyzeDir(path, findFileData.cFileName);
             } else {
-                analyzeFile(&findFileData);
+                analyzeFile(&findFileData, path);
             }
-            //Sleep(500);
+            //Sleep(10);
 
        } while (FindNextFile(hf,&findFileData)!= 0);
 
@@ -95,12 +102,71 @@ void VolumeAnalyzer::analyzeDir(const wchar_t* prevPath, const wchar_t* dirName)
     }
 }
 
-void VolumeAnalyzer::analyzeFile(const WIN32_FIND_DATA* findFileData)
+void VolumeAnalyzer::analyzeFile(const WIN32_FIND_DATA* findFileData, const wchar_t* filePath)
 {
-    //emit updateFileName(QString::fromWCharArray(findFileData->cFileName));
+    if (!running)
+       return;
 
+    wchar_t path[MAX_PATH] = {0};
+    lstrcpy(path, filePath);
+    lstrcat(path, L"\\");
+    lstrcat(path, findFileData->cFileName);
+
+    long long fileSize;
+    HANDLE hFile;
+    STARTING_VCN_INPUT_BUFFER startVcnBuf;
+    startVcnBuf.StartingVcn.QuadPart = 0;
+    RETRIEVAL_POINTERS_BUFFER fileInfo;
+    DWORD bytesRead;
+
+   // qDebug() << QString::fromWCharArray(path);
+
+    hFile = CreateFile(path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == INVALID_HANDLE_VALUE)
+        return;
+
+    if (!GetFileSizeEx(hFile, (PLARGE_INTEGER) &fileSize))
+        return;
+
+    if (!DeviceIoControl(
+        (HANDLE)hFile,
+        FSCTL_GET_RETRIEVAL_POINTERS,
+        (LPVOID) &startVcnBuf,
+        (DWORD) sizeof(startVcnBuf),
+        (LPVOID) &fileInfo,
+        (DWORD) sizeof(fileInfo) * 2,
+        (LPDWORD) &bytesRead,
+        NULL))
+    {
+        return;
+    }
+
+    double fragRateInc = 0.;
+    if (fileInfo.ExtentCount > 1) //fragmented
+    {
+        fragedCount_++;
+        fragRateInc = volumeSize_ / (double) fileSize;
+    }
     chekedCount_++;
-    //emit updateChekedCount(chekedCount_);
+
+    int percentInc = 0;
+    long long temp = dPrevPos_ + fileSize;
+    if (temp > dgStepSize_)
+    {
+        percentInc = temp / dgStepSize_;
+        dPrevPos_ = temp % dgStepSize_;
+    } else
+    {
+        dPrevPos_ += fileSize;
+    }
+
+
+    emit updateInfo(QString::fromWCharArray(path),
+                    fragedCount_,
+                    chekedCount_,
+                    percentInc,
+                    fragedRate_ + fragRateInc
+                    );
 }
 
 QStringList VolumeAnalyzer::getVolumesList()

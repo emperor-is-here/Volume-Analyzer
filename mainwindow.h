@@ -24,11 +24,15 @@ public slots:
     void updateInfo(const QString& fName,
                     long long fragedCountlong,
                     long long chekedCount,
-                    int percentInc = 0);
+                    double fragRate,
+                    int percentInc = 0
+                    );
     void notifyError(const QString& error);
 
 private slots:
     void on_startAnButton_clicked();
+
+    void on_stopAnButton_clicked();
 
 private:
     VolumeAnalyzer va;

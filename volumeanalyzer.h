@@ -27,16 +27,22 @@ signals:
     void updateInfo(const QString& fName,
                     long long fragedCountlong,
                     long long chekedCount,
-                    int percentInc = 0);
+                    double fragRate,
+                    int percentInc = 0
+                    );
     void notifyError(const QString& error);
 
 private:
     void analyzeVolume(const wchar_t* drive);
     void analyzeDir(const wchar_t* prevPath, const wchar_t* dirName);
-    void analyzeFile(const WIN32_FIND_DATA* findFileData);
-    QProgressBar* prBar_;
-    __int64 filesSize_, chekedSize_, fragedCount_, chekedCount_;
+    void analyzeFile(const WIN32_FIND_DATA* findFileData, const wchar_t* filePath);
+
+    long long  volumeSize_, dgStepSize_, dPrevPos_,
+              fragedCount_, chekedCount_;
+              //filesSize_, chekedSize_,
+    double fragedRate_;
     std::atomic_bool running;
+    //int currnetProgressDg;
 };
 
 #endif // VOLUMEANALYZER_H
