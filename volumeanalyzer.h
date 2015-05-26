@@ -15,7 +15,7 @@ class VolumeAnalyzer : public QObject
 {
     Q_OBJECT
 public:
-
+    VolumeAnalyzer();
     QStringList getVolumesList();
     void begin(const QString& drive);
 
@@ -33,15 +33,16 @@ signals:
     void notifyError(const QString& error);
 
 private:
+    bool chekDrive(const char driveLetter);
     void analyzeVolume(const wchar_t* drive);
     void analyzeDir(const wchar_t* prevPath, const wchar_t* dirName);
     void analyzeFile(const WIN32_FIND_DATA* findFileData, const wchar_t* filePath);
 
     long long  volumeSize_, dgStepSize_, dPrevPos_,
               fragedCount_, chekedCount_;
-              //filesSize_, chekedSize_,
     double fragedRate_;
-    std::atomic_bool running;
+    std::atomic_bool running_;
+    std::atomic_bool finished_;
     //int currnetProgressDg;
 };
 

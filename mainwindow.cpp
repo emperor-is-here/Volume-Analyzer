@@ -7,6 +7,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    setFixedSize(583, 312);
 
     connect(this, SIGNAL(anStop()), &va, SLOT(stop()));
     connect(&va, SIGNAL(finished()), this, SLOT(anFinished()));
@@ -34,14 +35,15 @@ void MainWindow::on_startAnButton_clicked()
 {
     ui->stopAnButton->setEnabled(true);
     ui->startAnButton->setEnabled(false);
-    ui->errorLabel->clear();
-
+    ui->statusLabel->clear();
+    ui->progressBar->setValue(0);
     va.begin( ui->volumeList->currentText() );
 }
 
 void MainWindow::anFinished()
 {
-    ui->errorLabel->setText("finished");
+    ui->statusLabel->setStyleSheet("QLabel { color : green; }");
+    ui->statusLabel->setText("Завершено");
     ui->stopAnButton->setEnabled(false);
     ui->startAnButton->setEnabled(true);
 }
@@ -57,19 +59,20 @@ void MainWindow::updateInfo(const QString& fName,
     ui->fFragedInfo->setText(QString::number(fragedCount));
     ui->fCheckedInfo->setText(QString::number(chekedCount));
     ui->progressBar->setValue (ui->progressBar->value() + percentInc);
-    ui->fRateInfo->setText(QString::number(fragRate) + " %");
+    ui->fRateInfo->setText(QString::number(fragRate, 'f', 2) + " %");
 }
 
 void MainWindow::notifyError(const QString &error)
 {
-    ui->errorLabel->setText(error);
+    ui->statusLabel->setStyleSheet("QLabel { color : red; }");
+    ui->statusLabel->setText(error);
 }
-
 
 void MainWindow::on_stopAnButton_clicked()
 {
     emit anStop();
-    ui->errorLabel->setText("terminated");
+    ui->statusLabel->setStyleSheet("QLabel { color : red; }");
+    ui->statusLabel->setText("Перервано");
     ui->stopAnButton->setEnabled(false);
     ui->startAnButton->setEnabled(true);
 }

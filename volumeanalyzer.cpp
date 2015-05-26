@@ -1,9 +1,13 @@
 #include "volumeanalyzer.h"
 
+VolumeAnalyzer::VolumeAnalyzer(): finished_(true)
+{
+}
+
 void VolumeAnalyzer::stop()
 {
-    running = false;
-    //pthread_kill(threadHandle, 0);
+    running_ = false;
+    finished_ = true;
 }
 
 void VolumeAnalyzer::begin(const QString& drive)
@@ -11,9 +15,9 @@ void VolumeAnalyzer::begin(const QString& drive)
     wchar_t drivePath[5];
     drive.toWCharArray(drivePath);
     drivePath[2] = '\0';
-    __int64 freeBytesToCaller,
-            totalBytes,
-            freeBytes;
+    long long freeBytesToCaller,
+              totalBytes,
+              freeBytes;
     DWORD status = GetDiskFreeSpaceEx(drivePath,
                        (PULARGE_INTEGER)&freeBytesToCaller,
                        (PULARGE_INTEGER)&totalBytes,
@@ -23,10 +27,12 @@ void VolumeAnalyzer::begin(const QString& drive)
         emit notifyError("Помилка при спробі отримати інформацію про носій");
         return;
     }
+
     volumeSize_ = totalBytes;
     dgStepSize_ = (totalBytes - freeBytes) / 100;
     chekedCount_ = 0; fragedCount_ = 0; dPrevPos_ = 0; fragedRate_ = 0.;
-    running = true;
+    while (!finished_) {}; //очікуємо на завершення поперденього потоку що аналізує том
+    running_ = true; finished_ = false;
     std::thread analyzeVolumeThread(&VolumeAnalyzer::analyzeVolume, this, drivePath);
     analyzeVolumeThread.detach();
 }
@@ -44,7 +50,7 @@ void VolumeAnalyzer::analyzeVolume(const wchar_t* drive)
     hf = FindFirstFile(searchExpr, &findFileData);
     if (hf != INVALID_HANDLE_VALUE){
     do {
-            if (!running)
+            if (!running_)
                return;
 
             if((lstrcmp(findFileData.cFileName, L".") == 0) ||
@@ -57,16 +63,16 @@ void VolumeAnalyzer::analyzeVolume(const wchar_t* drive)
             } else {
                analyzeFile(&findFileData, path);
             }
-//            Sleep(500);
 
        } while (FindNextFile(hf, &findFileData)!= 0);
 
       FindClose(hf);
     }
+    finished_ = true;
     emit finished();
 }
 
-void VolumeAnalyzer::analyzeDir(const wchar_t* prevPath, const wchar_t* dirName)
+inline void VolumeAnalyzer::analyzeDir(const wchar_t* prevPath, const wchar_t* dirName)
 {
     WIN32_FIND_DATA findFileData;
     HANDLE hf;
@@ -82,7 +88,7 @@ void VolumeAnalyzer::analyzeDir(const wchar_t* prevPath, const wchar_t* dirName)
     hf = FindFirstFile(serachExpr, &findFileData);
     if (hf != INVALID_HANDLE_VALUE){
     do {
-            if (!running)
+            if (!running_)
                return;
 
             if((lstrcmp(findFileData.cFileName, L".") == 0) ||
@@ -94,7 +100,6 @@ void VolumeAnalyzer::analyzeDir(const wchar_t* prevPath, const wchar_t* dirName)
             } else {
                 analyzeFile(&findFileData, path);
             }
-            //Sleep(10);
 
        } while (FindNextFile(hf,&findFileData)!= 0);
 
@@ -102,9 +107,9 @@ void VolumeAnalyzer::analyzeDir(const wchar_t* prevPath, const wchar_t* dirName)
     }
 }
 
-void VolumeAnalyzer::analyzeFile(const WIN32_FIND_DATA* findFileData, const wchar_t* filePath)
+inline void VolumeAnalyzer::analyzeFile(const WIN32_FIND_DATA* findFileData, const wchar_t* filePath)
 {
-    if (!running)
+    if (!running_)
        return;
 
     wchar_t path[MAX_PATH] = {0};
@@ -119,14 +124,15 @@ void VolumeAnalyzer::analyzeFile(const WIN32_FIND_DATA* findFileData, const wcha
     RETRIEVAL_POINTERS_BUFFER fileInfo;
     DWORD bytesRead;
 
-   // qDebug() << QString::fromWCharArray(path);
-
-    hFile = CreateFile(path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    hFile = CreateFile(path, 0, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hFile == INVALID_HANDLE_VALUE)
         return;
 
     if (!GetFileSizeEx(hFile, (PLARGE_INTEGER) &fileSize))
+    {
+        CloseHandle(hFile);
         return;
+    }
 
     if (!DeviceIoControl(
         (HANDLE)hFile,
@@ -138,14 +144,15 @@ void VolumeAnalyzer::analyzeFile(const WIN32_FIND_DATA* findFileData, const wcha
         (LPDWORD) &bytesRead,
         NULL))
     {
+        CloseHandle(hFile);
         return;
     }
+    CloseHandle(hFile);
 
-    double fragRateInc = 0.;
     if (fileInfo.ExtentCount > 1) //fragmented
     {
         fragedCount_++;
-        fragRateInc = volumeSize_ / (double) fileSize;
+        fragedRate_ +=  fileSize / (double)volumeSize_ * 100.0 ;
     }
     chekedCount_++;
 
@@ -160,13 +167,32 @@ void VolumeAnalyzer::analyzeFile(const WIN32_FIND_DATA* findFileData, const wcha
         dPrevPos_ += fileSize;
     }
 
-
     emit updateInfo(QString::fromWCharArray(path),
                     fragedCount_,
                     chekedCount_,
-                    percentInc,
-                    fragedRate_ + fragRateInc
+                    fragedRate_,
+                    percentInc
                     );
+}
+
+bool VolumeAnalyzer::chekDrive(const char driveLetter)
+{
+    char drive[3] = "?:";
+    drive[0] = driveLetter;
+
+    long long freeBytesToCaller,
+              totalBytes,
+              freeBytes;
+
+    DWORD status = GetDiskFreeSpaceExA(drive,
+                       (PULARGE_INTEGER)&freeBytesToCaller,
+                       (PULARGE_INTEGER)&totalBytes,
+                       (PULARGE_INTEGER)&freeBytes);
+    if (status == 0)
+    {
+        return false;
+    }
+    return true;
 }
 
 QStringList VolumeAnalyzer::getVolumesList()
@@ -183,9 +209,12 @@ QStringList VolumeAnalyzer::getVolumesList()
     {
         if ((logDrivers >> i) &1 )
         {
-            drive = char(i + 65);
-            drive += ":\\";
-            result << drive;
+            if (chekDrive(char(i + 65)))
+            {
+                drive = char(i + 65);
+                drive += ":\\";
+                result << drive;
+            }
         }
     }
     return result;
