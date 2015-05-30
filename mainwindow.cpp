@@ -44,6 +44,7 @@ void MainWindow::anFinished()
 {
     ui->statusLabel->setStyleSheet("QLabel { color : green; }");
     ui->statusLabel->setText("Завершено");
+    ui->progressBar->setValue(100);
     ui->stopAnButton->setEnabled(false);
     ui->startAnButton->setEnabled(true);
 }
