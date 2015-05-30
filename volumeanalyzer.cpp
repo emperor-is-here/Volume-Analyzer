@@ -1,7 +1,8 @@
 #include "volumeanalyzer.h"
 
-VolumeAnalyzer::VolumeAnalyzer(): finished_(true)
+VolumeAnalyzer::VolumeAnalyzer()
 {
+     finished_ = true;
 }
 
 void VolumeAnalyzer::stop()
