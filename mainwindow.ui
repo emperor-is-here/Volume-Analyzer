@@ -20,7 +20,7 @@
    </sizepolicy>
   </property>
   <property name="windowTitle">
-   <string>Analyzer</string>
+   <string>Аналізатор</string>
   </property>
   <widget class="QWidget" name="centralWidget">
    <widget class="QComboBox" name="volumeList">
@@ -67,7 +67,7 @@
      </rect>
     </property>
     <property name="text">
-     <string>Analyze</string>
+     <string>Аналіз</string>
     </property>
    </widget>
    <widget class="QPushButton" name="stopAnButton">
@@ -83,7 +83,7 @@
      </rect>
     </property>
     <property name="text">
-     <string>Stop</string>
+     <string>Зупинити</string>
     </property>
     <property name="flat">
      <bool>false</bool>
